@@ -2,6 +2,9 @@
 #include "Tetris.h"
 #include "TetrisDlg.h"
 
+/* x표시 되있는 곳이 pivot이고,      */
+/* [col-1], [col], [col+1], [col+2]  */
+/* 이런식으로 표현되어있다.          */
 /*
     case dir
     when 0
@@ -26,6 +29,7 @@
     . . . . . . . . . . . .
 */
 
+// Block I의 구성
 BlockI::BlockI(unsigned char clr, unsigned char **board) : Block(clr, board)
 {
     board[0][3] = clr;
@@ -34,6 +38,7 @@ BlockI::BlockI(unsigned char clr, unsigned char **board) : Block(clr, board)
     board[0][6] = clr;
 }
 
+// 아래로 이동 가능 여부 확인
 bool BlockI::canMoveDown()
 {
     switch(dir)
@@ -45,6 +50,7 @@ bool BlockI::canMoveDown()
     }
 }
 
+// 왼쪽으로 이동 가능 여부 확인
 bool BlockI::canMoveLeft()
 {
     switch(dir)
@@ -56,6 +62,7 @@ bool BlockI::canMoveLeft()
     }
 }
 
+// 오른쪽으로 이동 가능 여부 확인
 bool BlockI::canMoveRight()
 {
     switch(dir)
@@ -67,6 +74,7 @@ bool BlockI::canMoveRight()
     }
 }
 
+// 회전 가능 여부 확인
 bool BlockI::canTurn()
 {
     switch(dir)
@@ -83,6 +91,7 @@ bool BlockI::canTurn()
     }
 }
 
+// 아래로 이동
 void BlockI::moveDown()
 {
     switch(dir)
@@ -99,6 +108,7 @@ void BlockI::moveDown()
     }
 }
 
+// 왼쪽으로 이동
 void BlockI::moveLeft()
 {
     unsigned char *thisRow = board[row];
@@ -116,6 +126,7 @@ void BlockI::moveLeft()
     }
 }
 
+// 오른쪽으로 이동
 void BlockI::moveRight()
 {
     unsigned char *thisRow = board[row];
@@ -133,13 +144,18 @@ void BlockI::moveRight()
     }
 }
 
+// Block 회전
 void BlockI::turn()
 {
+	// 현재상태를 지우고
     clear();
+	// 방향을 바꾼 후
     dir ^= 1;
+	// 다시 보여줌
     show();
 }
 
+// Block이 내려갈 수 있는지 여부 확인
 bool BlockI::passable(char row, char col)
 {
     switch(dir)
@@ -160,6 +176,7 @@ bool BlockI::passable(char row, char col)
     }
 }
 
+// Block 보이기
 void BlockI::show()
 {
     unsigned char *thisRow = board[row];
@@ -179,6 +196,7 @@ void BlockI::show()
     }
 }
 
+// Block 지우기
 void BlockI::clear()
 {
     unsigned char *thisRow = board[row];

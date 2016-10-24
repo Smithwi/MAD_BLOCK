@@ -1,5 +1,6 @@
 #pragma once
 
+/* block 하나하나를 클래스화 하여 class_Block을 상속받음 */
 class Block
 {
 public:

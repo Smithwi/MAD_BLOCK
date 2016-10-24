@@ -6,6 +6,17 @@
 #define new DEBUG_NEW
 #endif
 
+/* 게임 윈도우 구현을 위한 실질적인 코드 */
+
+//////////////////////////
+/* 0x01 = NEW */
+/* 0x02 = PAUSE */
+/* 0x04 = STOP */
+/* 0x08 = SOUND */
+/* 0x10 = EXIT */
+//////////////////////////
+
+// 게임 초기상태 구현(이미지 불러오기, 레벨, 게임상태)
 CTetrisDlg::CTetrisDlg(CWnd* pParent /*=NULL*/)
 : CDialog(CTetrisDlg::IDD, pParent)
 {
@@ -14,6 +25,8 @@ CTetrisDlg::CTetrisDlg(CWnd* pParent /*=NULL*/)
     m_block.Load(_T("res\\178-Switch01.png"));
     m_window.Load(_T("res\\window.png"));
     m_gameover.Load(_T("res\\gameover.png"));
+
+	// 블럭이 채워질 배열(= 게임화면)
     m_board = new BYTE*[ROW];
     for(BYTE i = 0; i < ROW; ++i)
     {
@@ -24,6 +37,7 @@ CTetrisDlg::CTetrisDlg(CWnd* pParent /*=NULL*/)
     m_pBlock = NULL;
 }
 
+// Window 소멸자
 CTetrisDlg::~CTetrisDlg()
 {
     m_memBmp.DeleteObject();
@@ -37,6 +51,7 @@ CTetrisDlg::~CTetrisDlg()
     delete[] m_board;
 }
 
+// Event 메시지 맵핑
 BEGIN_MESSAGE_MAP(CTetrisDlg, CDialog)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
@@ -61,16 +76,22 @@ BEGIN_MESSAGE_MAP(CTetrisDlg, CDialog)
 	ON_COMMAND(ID_HELP_ABOUT, &CTetrisDlg::OnHelpAbout)
 END_MESSAGE_MAP()
 
+// 화면 업데이트
 void CTetrisDlg::Update()
 {
     RedrawBkgnd(CRect(0, 0, WIDTH + 320, HEIGHT));
     UpdateBlock();
     UpdateWindow();
+
+	// gameover일 때
     if(m_gameParam & 0x04)
     {
+		// gameover 이미지 적용
         CDC gameoverMemDC;
         gameoverMemDC.CreateCompatibleDC(&m_memDC);
         gameoverMemDC.SelectObject(m_gameover);
+
+		// 비트맵 이미지 사용시 blend option
         BLENDFUNCTION bf;
         bf.BlendOp = AC_SRC_OVER;
         bf.BlendFlags = 0;
@@ -81,6 +102,7 @@ void CTetrisDlg::Update()
     m_pDC->BitBlt(0, 0, WIDTH + 320, HEIGHT, &m_memDC, 0, 0, SRCCOPY);
 }
 
+// 창 조절
 void CTetrisDlg::AdjustFrame()
 {
     CRect rect;
@@ -92,8 +114,10 @@ void CTetrisDlg::AdjustFrame()
     SetWindowPos(NULL, 0, 0, rect.Width(), rect.Height(), SWP_NOMOVE | SWP_NOZORDER);
 }
 
+// 초기화
 void CTetrisDlg::Initialize()
 {
+	// 타이머 초기화
     KillTimer(555);
     m_lines = 0;
     m_score = 0;
@@ -103,17 +127,22 @@ void CTetrisDlg::Initialize()
     }
     delete m_pBlock;
     m_pBlock = NULL;
+
+	// STOP, PAUSE 비활성화
     m_menu.EnableMenuItem(ID_GAME_STOP, MF_DISABLED | MF_GRAYED);
     m_menu.EnableMenuItem(ID_GAME_PAUSE, MF_DISABLED | MF_GRAYED);
     m_menu.CheckMenuItem(ID_GAME_PAUSE, MF_UNCHECKED);
 }
 
+// 배경 그리기
 void CTetrisDlg::RedrawBkgnd(RECT rect)
 {
     CBrush bkBr(CBitmap::FromHandle(m_bk));
     m_memDC.FillRect(&rect, &bkBr);
 }
 
+
+// TEXT
 void CTetrisDlg::DrawText(SHORT x1, SHORT y1, SHORT x2, SHORT y2, CString &text, UINT format, COLORREF clr = 0xFFFFFF)
 {
     m_memDC.SetTextColor(0x000000);
@@ -122,6 +151,7 @@ void CTetrisDlg::DrawText(SHORT x1, SHORT y1, SHORT x2, SHORT y2, CString &text,
     m_memDC.DrawText(text, CRect(x1, y1, x2, y2), format | DT_NOCLIP);
 }
 
+// Font Size
 void CTetrisDlg::SetFontSize(BYTE size)
 {
     CFont font;
@@ -144,6 +174,7 @@ void CTetrisDlg::SetFontSize(BYTE size)
     m_memDC.SelectObject(&font);
 }
 
+// SOUND
 void CTetrisDlg::Play(MCIDEVICEID id)
 {
     if(m_gameParam & 0x08)
@@ -154,12 +185,14 @@ void CTetrisDlg::Play(MCIDEVICEID id)
     }
 }
 
+// block update
 void CTetrisDlg::UpdateBlock()
 {
     CDC blockMemDC;
     blockMemDC.CreateCompatibleDC(&m_memDC);
     blockMemDC.SelectObject(m_block);
 
+	// 비트맵 이미지 사용시 blend option
     BLENDFUNCTION bf;
     bf.BlendOp = AC_SRC_OVER;
     bf.BlendFlags = 0;
@@ -182,11 +215,15 @@ void CTetrisDlg::UpdateBlock()
     blockMemDC.DeleteDC();
 }
 
+// 화면 update
 void CTetrisDlg::UpdateWindow()
 {
+	// window 이미지 적용
     CDC wndMemDC;
     wndMemDC.CreateCompatibleDC(&m_memDC);
     wndMemDC.SelectObject(m_window);
+
+	// 비트맵 이미지 blend option
     BLENDFUNCTION bf;
     bf.BlendOp = AC_SRC_OVER;
     bf.BlendFlags = 0;
@@ -195,12 +232,16 @@ void CTetrisDlg::UpdateWindow()
     ::AlphaBlend(m_memDC, 328, 10, 308, 629, wndMemDC, 0, 0, 308, 629, bf);
     wndMemDC.DeleteDC();
 
+	// text 설정
     SetFontSize(30);
     CString str;
     DrawText(360, 32, 600, 64, str = "NEXT TETROMINO:", DT_LEFT);
+
+	// block 이미지 적용
     CDC blockMemDC;
     blockMemDC.CreateCompatibleDC(&m_memDC);
     blockMemDC.SelectObject(m_block);
+
     BYTE x = (m_nextColor - 1) << 5;
     switch((m_gameParam & 0xE0) >> 5)
     {
@@ -247,6 +288,8 @@ void CTetrisDlg::UpdateWindow()
         m_memDC.StretchBlt(494, 128, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
     }
     blockMemDC.DeleteDC();
+
+	// 각각의 버튼 글자 설정
     DrawText(360, 192, 600, 224, str = "LEVEL:", DT_LEFT);
     str.Format(_T("%d"), m_level + 1);
     DrawText(360, 192, 600, 224, str, DT_RIGHT);
@@ -258,6 +301,8 @@ void CTetrisDlg::UpdateWindow()
     DrawText(360, 320, 600, 352, str, DT_RIGHT);
     SetFontSize(m_mouseOver == 0x01 ? 36 : 30);
     DrawText(360, 384, 600, 416, str = "NEW", DT_CENTER);
+
+	// 게임 시작을 안했거나 STOP 상태일 때
     if(!(m_gameParam & 0x01) || (m_gameParam & 0x04))
     {
         SetFontSize(30);
@@ -266,18 +311,26 @@ void CTetrisDlg::UpdateWindow()
     }
     else
     {
+		// PAUSE에 마우스오버 했을때 글자 커짐
         SetFontSize(m_mouseOver == 0x02 ? 36 : 30);
         DrawText(400, 448, 560, 480, str = "PAUSE", DT_LEFT, m_gameParam & 0x02 ? 0x0000FF : 0xFFFFFF);
-        SetFontSize(m_mouseOver == 0x04 ? 36 : 30);
+        
+		// STOP에 마우스오버 했을때 글자 커짐
+		SetFontSize(m_mouseOver == 0x04 ? 36 : 30);
         DrawText(400, 448, 560, 480, str = "STOP", DT_RIGHT, 0xFFFFFF);
     }
+
+	// SOUND에 마우스오버 했을때 글자 커짐
     SetFontSize(m_mouseOver == 0x08 ? 36 : 30);
     SetTextColor(m_memDC, 0xFFFFFF);
     DrawText(360, 512, 600, 544, str = "SOUND", DT_CENTER, m_gameParam & 0x08 ? 0x0000FF : 0xFFFFFF);
-    SetFontSize(m_mouseOver == 0x10 ? 36 : 30);
+    
+	// EXIT에 마우스오버 했을때 글자 커짐
+	SetFontSize(m_mouseOver == 0x10 ? 36 : 30);
     DrawText(360, 576, 600, 608, str = "EXIT", DT_CENTER);
 }
 
+// 다음 block random
 void CTetrisDlg::NextRandomBlock()
 {
     UINT r;
@@ -287,6 +340,7 @@ void CTetrisDlg::NextRandomBlock()
     m_nextColor = NextRandomColor();
 }
 
+// 다음 block color random
 BYTE CTetrisDlg::NextRandomColor()
 {
     UINT r;
@@ -294,6 +348,7 @@ BYTE CTetrisDlg::NextRandomColor()
     return (BYTE)((DOUBLE)r / ((__int64)UINT_MAX + 1) * 4 + 1);
 }
 
+// Block Index 부여
 Block *CTetrisDlg::BlockFromIndex(BYTE i)
 {
     Play(theApp.m_se_apprID);
@@ -316,10 +371,13 @@ Block *CTetrisDlg::BlockFromIndex(BYTE i)
     }
 }
 
+// 현재 줄 체크
 BOOL CTetrisDlg::CheckLine(BYTE row)
 {
     BYTE *thisRow = m_board[row];
-    for(BYTE i = 0; i < COL; ++i)
+    
+	// 한 열, 한 열 체크해서 하나라도 비어있으면 return false
+	for(BYTE i = 0; i < COL; ++i)
     {
         if(!thisRow[i])
             return false;
@@ -327,15 +385,18 @@ BOOL CTetrisDlg::CheckLine(BYTE row)
     return true;
 }
 
+// 줄 제거
 void CTetrisDlg::RemoveLine(BYTE row)
 {
     BYTE *prevRow;
     BYTE *thisRow = m_board[row];
 
+	// block 이미지 적용
     CDC blockMemDC;
     blockMemDC.CreateCompatibleDC(&m_memDC);
     blockMemDC.SelectObject(m_block);
 
+	// 비트맵 이미지 적용 옵션
     BLENDFUNCTION bf;
     bf.BlendOp = AC_SRC_OVER;
     bf.BlendFlags = 0;
@@ -343,6 +404,7 @@ void CTetrisDlg::RemoveLine(BYTE row)
 
     Play(theApp.m_se_dsprID);
 
+	// 지워질 줄의 블럭 Opacity를 0으로 낮춤
     for(BYTE opacity = 220; opacity != 0; --opacity)
     {
         RedrawBkgnd(CRect(0, row << 5, WIDTH, (row + 1) << 5));
@@ -355,8 +417,11 @@ void CTetrisDlg::RemoveLine(BYTE row)
     }
     for(CHAR i = row; i > 0; --i)
     {
+		// 윗줄이 한 칸 아래로 내려옴
         prevRow = m_board[i - 1];
         thisRow = m_board[i];
+
+		// 내려온 줄을 thisRow로 저장
         for(BYTE j = 0; j < COL; ++j)
         {
             thisRow[j] = prevRow[j];
@@ -372,32 +437,54 @@ void CTetrisDlg::RemoveLine(BYTE row)
     Update();
 }
 
+// 게임 끝났는지 확인
 BOOL CTetrisDlg::IsGameOver(BYTE blockType)
 {
     switch(blockType)
     {
+		/* **** */
     case 0:
         return m_board[0][3] || m_board[0][4] || m_board[0][5] || m_board[0][6];
-    case 1:
+		/*   * */
+		/* *** */
+	case 1:
         return m_board[0][3] || m_board[0][4] || m_board[0][5]|| m_board[1][5];
-    case 2:
+		/* *   */
+		/* *** */
+	case 2:
         return m_board[0][3] || m_board[0][4] || m_board[0][5] || m_board[1][3];
-    case 3:
+		/* ** */
+		/* ** */
+	case 3:
         return m_board[0][4] || m_board[0][5] || m_board[1][4] || m_board[1][5];
-    case 4:
+		/* **  */
+		/*  ** */
+	case 4:
         return m_board[0][4] || m_board[0][5] || m_board[1][3] || m_board[1][4];
-    case 5:
+		/*  *  */
+		/* *** */
+	case 5:
         return m_board[0][3] || m_board[0][4] || m_board[0][5] || m_board[1][4];
-    default:
+		/*  ** */
+		/* **  */
+	default:
         return m_board[0][3] || m_board[0][4] || m_board[1][4] || m_board[1][5];
     }
 }
 
+// 게임 종료
 void CTetrisDlg::GameOver()
 {
+	// 게임 오버 실행
     Play(theApp.m_me_gmvrID);
+
+	//게임이 꺼졌을때 timer를 꺼주는 함수
     KillTimer(555);
+
+	// 게임 STOP
     m_gameParam |= 0x04;
+
+	// 게임메뉴에서 stop과 pause 비활성화
     m_menu.EnableMenuItem(ID_GAME_STOP, MF_DISABLED | MF_GRAYED);
     m_menu.EnableMenuItem(ID_GAME_PAUSE, MF_DISABLED | MF_GRAYED);    
 }
@@ -417,24 +504,36 @@ BOOL CTetrisDlg::PreTranslateMessage(MSG *pMsg)
     return CDialog::PreTranslateMessage(pMsg);
 }
 
+// 버튼 및 메뉴 초기화
 BOOL CTetrisDlg::OnInitDialog()
 {
 	CDialog::OnInitDialog();
 
+	// 메뉴 로드
 	SetIcon(m_hIcon, TRUE);
 	SetIcon(m_hIcon, FALSE);
     m_menu.LoadMenu(IDR_MENU);
+
+	// 메뉴설정
     SetMenu(&m_menu);
     m_menu.EnableMenuItem(ID_GAME_PAUSE, MF_DISABLED | MF_GRAYED);
     m_menu.EnableMenuItem(ID_GAME_STOP, MF_DISABLED | MF_GRAYED);
+
+	// client 영역 활성화(테트리스 화면)
     m_pDC = new CClientDC(this);
+
+	// 화면에 비트맵 출력
     m_memDC.CreateCompatibleDC(m_pDC);
     m_memBmp.CreateCompatibleBitmap(m_pDC, WIDTH + 320, HEIGHT);
     m_memDC.SelectObject(m_memBmp);
+
+	// 글자의 back을 투명하게 설정
     m_memDC.SetBkMode(TRANSPARENT);
     SetFontSize(30);
     AdjustFrame();
     Initialize();
+
+	// sound, level - beginner 메뉴 활성화
 	m_menu.CheckMenuItem(ID_GAME_SOUND, MF_CHECKED);
 	m_menu.CheckMenuItem(ID_LEVEL_BEGINNER, MF_CHECKED);
 
@@ -442,14 +541,18 @@ BOOL CTetrisDlg::OnInitDialog()
     return TRUE;
 }
 
+// WM_PAINT가 발생하면 해당 함수가 호출
 void CTetrisDlg::OnPaint()
 {
     Update();
 	if (IsIconic())
 	{
+		// 그리기를 위한 컨텍스트
 	    CPaintDC dc(this);
+
 		SendMessage(WM_ICONERASEBKGND, reinterpret_cast<WPARAM>(dc.GetSafeHdc()), 0);
 
+		// 클라이언트 사각형에서 아이콘을 가운데에 맞춤
 		int cxIcon = GetSystemMetrics(SM_CXICON);
 		int cyIcon = GetSystemMetrics(SM_CYICON);
 		CRect rect;
@@ -457,6 +560,7 @@ void CTetrisDlg::OnPaint()
 		int x = (rect.Width() - cxIcon + 1) / 2;
 		int y = (rect.Height() - cyIcon + 1) / 2;
 
+		// 아이콘을 그림
 		dc.DrawIcon(x, y, m_hIcon);
 	}
 	else
@@ -470,28 +574,37 @@ HCURSOR CTetrisDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+// 키보드 합수
 void CTetrisDlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
+	// 단축키 활용(F1, F2, F3, F4)
     switch(nChar)
     {
+		// F1, NEW
     case VK_F1:
         PostMessage(WM_COMMAND, ID_GAME_NEW, 0L);
         break;
+		// F2, PAUSE
     case VK_F2:
         if((m_gameParam & 0x01) && !(m_gameParam & 0x04))
             PostMessage(WM_COMMAND, ID_GAME_PAUSE, 0L);
         break;
-    case VK_F3:
+		// F3, STOP
+	case VK_F3:
         if((m_gameParam & 0x01) && !(m_gameParam & 0x04))
             PostMessage(WM_COMMAND, ID_GAME_STOP, 0L);
         break;
+		// F4, SOUND
     case VK_F4:
         PostMessage(WM_COMMAND, ID_GAME_SOUND, 0L);
     }
+
+	// 방향키 조작
     if((m_gameParam & 0x07) == 0x01)
     {
         switch(nChar)
         {
+			// 위 방향키
         case VK_UP:
             if(!(nFlags & 0x4000))
             {
@@ -506,6 +619,7 @@ void CTetrisDlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
                 }
             }
             break;
+			// 아래 방향키
         case VK_DOWN:
             if(m_pBlock->canMoveDown())
             {
@@ -513,12 +627,16 @@ void CTetrisDlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
                 m_score += m_level + 1;
             }
             break;
+
+			// 왼쪽 방향키
         case VK_LEFT:
             if(m_pBlock->canMoveLeft())
             {
                 m_pBlock->moveLeft();
             }
             break;
+
+			// 오른쪽 방향키
         case VK_RIGHT:
             if(m_pBlock->canMoveRight())
             {
@@ -531,6 +649,7 @@ void CTetrisDlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
     CDialog::OnKeyDown(nChar, nRepCnt, nFlags);
 }
 
+// 마우스를 클릭했을 때(클릭했다가 다른곳에서 마우스를 띄었을때를 위함)
 void CTetrisDlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
     if(m_mouseOver != 0x00)
@@ -539,26 +658,36 @@ void CTetrisDlg::OnLButtonDown(UINT nFlags, CPoint point)
     }
 }
 
+// 마우스를 띄었을 때 동작
 void CTetrisDlg::OnLButtonUp(UINT nFlags, CPoint point)
 {
     if(m_gameParam & 0x10)
     {
+		// NEW
         if(m_mouseOver == 0x01)
         {
             PostMessage(WM_COMMAND, ID_GAME_NEW);
         }
+
+		// PAUSE
         else if((m_gameParam & 0x01) && !(m_gameParam & 0x04) && m_mouseOver == 0x02)
         {
             PostMessage(WM_COMMAND, ID_GAME_PAUSE);
         }
+
+		// STOP
         else if((m_gameParam & 0x01) && !(m_gameParam & 0x04) && m_mouseOver == 0x04)
         {
             PostMessage(WM_COMMAND, ID_GAME_STOP);
         }
+
+		// SOUND
         else if(m_mouseOver == 0x08)
         {
             PostMessage(WM_COMMAND, ID_GAME_SOUND);
         }
+
+		// EXIT
         else if(m_mouseOver == 0x10)
         {
             PostMessage(WM_COMMAND, ID_GAME_EXIT);
@@ -566,9 +695,12 @@ void CTetrisDlg::OnLButtonUp(UINT nFlags, CPoint point)
     }
 }
 
+// 버튼위에 마우스오버 했을 때
 void CTetrisDlg::OnMouseMove(UINT nFlags, CPoint point)
 {
+	// NEW에 마우스 오버
     CRect rect;
+	// NEW 영역
     rect.SetRect(459, 384, 502, 413);
     if(m_mouseOver != 0x01 && ::PtInRect(&rect, point))
     {
@@ -581,8 +713,11 @@ void CTetrisDlg::OnMouseMove(UINT nFlags, CPoint point)
         m_mouseOver = 0x00;
         Invalidate(FALSE);
     }
+
+	// (NEW에 마우스 오버X) PAUSE에 마우스 오버
     else
     {
+		// PAUSE 영역
         rect.SetRect(400, 448, 459, 477);
         if((m_gameParam & 0x01) && !(m_gameParam & 0x04) && m_mouseOver != 0x02 && ::PtInRect(&rect, point))
         {
@@ -595,8 +730,11 @@ void CTetrisDlg::OnMouseMove(UINT nFlags, CPoint point)
             m_mouseOver = 0x00;
             Invalidate(FALSE);
         }
+
+		// (NEW, PAUSE에 마우스오버 X) STOP에 마우스 오버
         else
         {
+			// STOP 영역
             rect.SetRect(512, 448, 560, 477);
             if((m_gameParam & 0x01) && !(m_gameParam & 0x04) && m_mouseOver != 0x04 && ::PtInRect(&rect, point))
             {
@@ -609,8 +747,11 @@ void CTetrisDlg::OnMouseMove(UINT nFlags, CPoint point)
                 m_mouseOver = 0x00;
                 Invalidate(FALSE);
             }
+
+			// (NEW, PAUSE, STOP에 마우스오버 X) SOUND에 마우스 오버
             else
             {
+				// SOUND 영역
                 rect.SetRect(448, 512, 512, 541);
                 if(m_mouseOver != 0x08 && ::PtInRect(&rect, point))
                 {
@@ -623,8 +764,11 @@ void CTetrisDlg::OnMouseMove(UINT nFlags, CPoint point)
                     m_mouseOver = 0x00;
                     Invalidate(FALSE);
                 }
+
+				// (NEW, PAUSE, STOP, SOUND에 마우스오버 X) EXIT에 마우스 오버
                 else
                 {
+					// EXIT 영역
                     rect.SetRect(460, 576, 500, 608);
                     if(m_mouseOver != 0x10 && ::PtInRect(&rect, point))
                     {
@@ -648,17 +792,22 @@ UINT CTetrisDlg::OnGetDlgCode()
     return DLGC_WANTARROWS | CDialog::OnGetDlgCode();
 }
 
+// 배경 지움
 BOOL CTetrisDlg::OnEraseBkgnd(CDC* pDC)
 {
     return TRUE;
 }
-  
+
+// 타이머
 void CTetrisDlg::OnTimer(UINT_PTR nIDEvent)
 {
+	// 일정 시간동안 block 아래로 내려옴
     if(m_pBlock->canMoveDown())
     {
         m_pBlock->moveDown();
     }
+
+	// 줄을 체크하여 전부 채워진 줄은 제거
     else
     {
         for(CHAR i = ROW - 1; i >= 0; --i)
@@ -669,13 +818,18 @@ void CTetrisDlg::OnTimer(UINT_PTR nIDEvent)
                 ++i;
             }
         }
+
         MSG msg;
         while(::PeekMessage(&msg, m_hWnd, 0, 0, PM_REMOVE));
+		
+		// 게임이 종료되었는지 확인
         if(IsGameOver(m_gameParam & 0xE0))
         {
             GameOver();
         }
-        else
+        
+		// 게임이 종료되지 않았다면 계속 진행
+		else
         {
             delete m_pBlock;
             m_pBlock = BlockFromIndex(m_gameParam & 0xE0);
@@ -687,28 +841,38 @@ void CTetrisDlg::OnTimer(UINT_PTR nIDEvent)
     CDialog::OnTimer(nIDEvent);
 }
 
+// NEW button
 void CTetrisDlg::OnGameNew()
 {
+	// 초기화
     if(m_gameParam & 0x01)
     {
         Initialize();
     }
     m_gameParam |= 0x01;
     m_gameParam &= ~0x06;
-    m_menu.EnableMenuItem(ID_GAME_STOP, MF_ENABLED);
+    
+	// STOP, PAUSE 활성화
+	m_menu.EnableMenuItem(ID_GAME_STOP, MF_ENABLED);
     m_menu.EnableMenuItem(ID_GAME_PAUSE, MF_ENABLED);
+
+	// level에 따른 타이머 설정
     SetTimer(555, 500 - m_level * 90, NULL);
+
+	// 다음 block random
     NextRandomBlock();
     m_pBlock = BlockFromIndex(m_gameParam & 0xE0);
     NextRandomBlock();
     Invalidate(FALSE);
 }
 
+// PAUSE button
 void CTetrisDlg::OnGamePause()
 {
     Play(theApp.m_se_slctID);
     if(m_gameParam & 0x02)
     {
+		// PAUSE 선택표시
         m_menu.CheckMenuItem(ID_GAME_PAUSE, MF_UNCHECKED);
         m_gameParam &= ~0x02;
         SetTimer(555, 500 - m_level * 90, NULL);
@@ -721,6 +885,8 @@ void CTetrisDlg::OnGamePause()
     }
     Invalidate(FALSE);
 }
+
+// STOP button
 void CTetrisDlg::OnGameStop()
 {
     Play(theApp.m_se_slctID);
@@ -729,6 +895,7 @@ void CTetrisDlg::OnGameStop()
     Invalidate(FALSE);
 }
 
+// Beginner level
 void CTetrisDlg::OnLevelBeginner()
 {
     m_menu.GetSubMenu(0)->GetSubMenu(3)->CheckMenuItem(m_level, MF_BYPOSITION | MF_UNCHECKED);
@@ -738,6 +905,7 @@ void CTetrisDlg::OnLevelBeginner()
         PostMessage(WM_COMMAND, ID_GAME_STOP, 0L);
 }
 
+// Intermediate level
 void CTetrisDlg::OnLevelIntermediate()
 {
     m_menu.GetSubMenu(0)->GetSubMenu(3)->CheckMenuItem(m_level, MF_BYPOSITION | MF_UNCHECKED);
@@ -747,6 +915,7 @@ void CTetrisDlg::OnLevelIntermediate()
         PostMessage(WM_COMMAND, ID_GAME_STOP, 0L);
 }
 
+// Advanced level
 void CTetrisDlg::OnLevelAdvanced()
 {
     m_menu.GetSubMenu(0)->GetSubMenu(3)->CheckMenuItem(m_level, MF_BYPOSITION | MF_UNCHECKED);
@@ -756,6 +925,7 @@ void CTetrisDlg::OnLevelAdvanced()
         PostMessage(WM_COMMAND, ID_GAME_STOP, 0L);
 }
 
+// Expert level
 void CTetrisDlg::OnLevelExpert()
 {
     m_menu.GetSubMenu(0)->GetSubMenu(3)->CheckMenuItem(m_level, MF_BYPOSITION | MF_UNCHECKED);
@@ -765,6 +935,7 @@ void CTetrisDlg::OnLevelExpert()
         PostMessage(WM_COMMAND, ID_GAME_STOP, 0L);
 }
 
+// Devil level
 void CTetrisDlg::OnLevelDevil()
 {
     m_menu.GetSubMenu(0)->GetSubMenu(3)->CheckMenuItem(m_level, MF_BYPOSITION | MF_UNCHECKED);
@@ -774,6 +945,7 @@ void CTetrisDlg::OnLevelDevil()
         PostMessage(WM_COMMAND, ID_GAME_STOP, 0L);
 }
 
+// Hell level
 void CTetrisDlg::OnLevelHell()
 {
     m_menu.GetSubMenu(0)->GetSubMenu(3)->CheckMenuItem(m_level, MF_BYPOSITION | MF_UNCHECKED);
@@ -783,6 +955,7 @@ void CTetrisDlg::OnLevelHell()
         PostMessage(WM_COMMAND, ID_GAME_STOP, 0L);
 }
 
+// SOUND button
 void CTetrisDlg::OnGameSound()
 {
     Play(theApp.m_se_slctID);
@@ -799,11 +972,13 @@ void CTetrisDlg::OnGameSound()
     Invalidate(FALSE);
 }
 
+// EXIT button
 void CTetrisDlg::OnGameExit()
 {
     PostMessage(WM_COMMAND, IDOK, 0L);
 }
 
+// help - about
 void CTetrisDlg::OnHelpAbout()
 {
     CAboutDlg dlgAbout;
