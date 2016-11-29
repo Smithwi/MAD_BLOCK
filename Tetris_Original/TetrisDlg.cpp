@@ -38,16 +38,20 @@ CTetrisDlg::CTetrisDlg(CWnd* pParent /*=NULL*/)
         m_board[i] = new BYTE[COL];
     }
 
+	//변수들 초기화
 	m_befortime = GetTickCount();
-    m_level = 0;
+    m_level = 4;//속도 4 고정
     m_gameParam = 0x08;
     m_pBlock = NULL;
-	m_ninterruptCount =0;
+	//이동방해, 회전방해 초기화.
+	m_ninterruptCount =0;  
 	m_ninterruptTarget=0;
 	m_ninterrupt =0;
+
+	//섞기 초기화
 	m_bShake =false;
 	m_bStart=false;
-	oneShot = 1;
+	oneShot = 1;//아이템 1개 
 }
 
 // Window 소멸자
@@ -136,13 +140,13 @@ void CTetrisDlg::Initialize()
 	// 타이머 초기화
     KillTimer(555);
     m_lines = 0;
-    m_score = 0;
-	oneShot = 1;
-	m_befortime = GetTickCount();
+    m_score = 0; // 원래는 점수였으나 시간으로 쓰임;
+	oneShot = 1; //아이템 다시 1개
+	m_befortime = GetTickCount(); //시스템 시간 가져오기
     for(BYTE i = 0; i < ROW; ++i)
     {
         memset(m_board[i], 0, COL);
-    }
+    } // 배열 초기화
     delete m_pBlock;
     m_pBlock = NULL;
 
@@ -194,6 +198,7 @@ void CTetrisDlg::SetFontSize(BYTE size)
 
 // SOUND
 
+//효과음,배경음악 정지
 void CTetrisDlg::Stop(MCIDEVICEID id)
 {
     if(m_gameParam & 0x08)
@@ -204,6 +209,7 @@ void CTetrisDlg::Stop(MCIDEVICEID id)
     }
 }
 
+//효과음,배경음악 재생
 void CTetrisDlg::Play(MCIDEVICEID id)
 {
     if(m_gameParam & 0x08)
@@ -325,6 +331,8 @@ void CTetrisDlg::UpdateWindow()
     str.Format(_T("%d"), m_level + 1);
     DrawText(360, 192, 600, 224, str, DT_RIGHT);
     DrawText(360, 256, 600, 288, str = "TIME:", DT_LEFT);
+
+	//저장된 시간과 현재 시스템 시간의 차가 1마이크로 초 이상 난다면 TIME 1증가
 	DWORD ple = GetTickCount()-m_befortime;
 	if(ple>=1000.0f)
 	{
@@ -334,11 +342,11 @@ void CTetrisDlg::UpdateWindow()
 
     str.Format(_T("%d"), m_score);
    DrawText(360, 256, 600, 288, str, DT_RIGHT);
-   // DrawText(360, 320, 600, 352, str = "LINES:", DT_LEFT);
-	
+  
 	str.Format(_T("ITEM:"));
 	DrawText(360, 320, 600, 352, str, DT_LEFT);
 
+	//소지중인 아이템 갯수 그리기
 	str.Format(_T("%d"), oneShot);
     DrawText(360, 320, 600, 352, str, DT_RIGHT);
     SetFontSize(m_mouseOver == 0x01 ? 36 : 30);
@@ -366,7 +374,7 @@ void CTetrisDlg::UpdateWindow()
 
 	 
 
-	//oneShot
+
 	// SOUND에 마우스오버 했을때 글자 커짐
     SetFontSize(m_mouseOver == 0x08 ? 36 : 30);
     SetTextColor(m_memDC, 0xFFFFFF);
@@ -695,6 +703,7 @@ void CTetrisDlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
         case VK_UP:
 			if((m_ninterrupt ==2||m_ninterrupt==3)&&(m_ninterruptCount ==m_ninterruptTarget))
 			{
+				//인터럽트 카운트 초기화, 경고음 재생, 인터럽트 확률 재 설정.
 				Play(theApp.m_w_ID);
 				m_ninterruptTarget =GetTickCount()%5+1;
 				m_ninterruptCount=0;
@@ -722,6 +731,7 @@ void CTetrisDlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
         case VK_DOWN:
 			if((m_ninterrupt ==1||m_ninterrupt==3)&&(m_ninterruptCount ==m_ninterruptTarget))
 			{
+				//인터럽트 카운트 초기화, 경고음 재생, 인터럽트 확률 재 설정.
 				int k = GetTickCount()%3;
 				if(k==0)
 				{
@@ -766,6 +776,7 @@ void CTetrisDlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
         case VK_LEFT:
 			if((m_ninterrupt ==1||m_ninterrupt==3)&&(m_ninterruptCount ==m_ninterruptTarget))
 			{
+				//인터럽트 카운트 초기화, 경고음 재생, 인터럽트 확률 재 설정.
 				if(m_pBlock->canMoveRight())
 				{
 					Play(theApp.m_w_ID);
@@ -790,6 +801,7 @@ void CTetrisDlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
         case VK_RIGHT:
 			if((m_ninterrupt ==1||m_ninterrupt==3)&&(m_ninterruptCount ==m_ninterruptTarget))
 			{
+				//인터럽트 카운트 초기화, 경고음 재생, 인터럽트 확률 재 설정.
 				if(m_pBlock->canMoveLeft())
 				{
 					Play(theApp.m_w_ID);
@@ -829,7 +841,7 @@ void CTetrisDlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 
 			break;
 
-			// space bar를 누르면 블럭이 한번에 내려옴
+			// space bar를 누르면 블럭이 한번에 내려옴,못내려올때까지 계속내림
 		case VK_SPACE:
 			while(m_pBlock->canMoveDown())
 		   {
@@ -1112,12 +1124,14 @@ void CTetrisDlg::OnTimer(UINT_PTR nIDEvent)
 				m_nextColor = NextRandomColor(); 
 			}
 
+			//시스템시간을 10으로 나눈 나머지가 0일때 셰이크 발동(10의배수)
 			r= GetTickCount()%10;
 			if(r==0)
 			{
 				m_bShake=true;
 			}
 
+			//키 입력과는 상관없이 인터럽트 발동
 			m_ninterrupt = rand()%5+1;
 			m_ninterruptCount =0;
 			m_ninterruptTarget =rand()%5+1;
@@ -1147,7 +1161,7 @@ void CTetrisDlg::OnGameNew()
     m_menu.EnableMenuItem(ID_GAME_PAUSE, MF_ENABLED);
 
 	// level에 따른 타이머 설정
-    SetTimer(555, 500 - 4 * 90, NULL);
+    SetTimer(555, 500 - m_level * 90, NULL);
 
 	// 다음 block random
     NextRandomBlock();
@@ -1165,7 +1179,7 @@ void CTetrisDlg::OnGamePause()
 		// PAUSE 선택표시
         m_menu.CheckMenuItem(ID_GAME_PAUSE, MF_UNCHECKED);
         m_gameParam &= ~0x02;
-        SetTimer(555, 500 - 4 * 90, NULL);
+        SetTimer(555, 500 - m_level * 90, NULL);
 		m_bStart =true;
     }
     else

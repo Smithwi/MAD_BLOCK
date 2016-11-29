@@ -33,18 +33,20 @@ private:
     CBitmap m_memBmp;
     CClientDC *m_pDC;
 
-	int oneShot;
-	
+	int oneShot; // 아이템 변수
 
-	int		m_ninterrupt;
+    //회전방해 변수
+	int		m_ninterrupt; 
 	int		m_ninterruptCount;
-	int		m_ninterruptTarget;
-    BYTE **m_board;
-
+	int		m_ninterruptTarget; 
+  
+	//셰이크 변수
 	bool	m_bStart;
 	DWORD	m_befortime;
-	bool	m_bShake;
+	bool	m_bShake; 
 
+
+	BYTE **m_board;
     Block *m_pBlock;
     BYTE m_level;
     BYTE m_gameParam;

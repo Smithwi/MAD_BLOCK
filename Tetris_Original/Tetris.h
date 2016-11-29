@@ -22,8 +22,7 @@ public:
     MCIDEVICEID m_se_crsrID;	// 버튼 마우스 오버
     MCIDEVICEID m_se_slctID;	// 버튼 클릭
 	MCIDEVICEID m_me_gmvrID;    // 게임 오버
-
-	MCIDEVICEID m_w_ID;
+	MCIDEVICEID m_w_ID;         //경고음 ++
 };
 
 extern CTetrisApp theApp;
