@@ -33,7 +33,18 @@ private:
     CBitmap m_memBmp;
     CClientDC *m_pDC;
 
+	int oneShot;
+	
+
+	int		m_ninterrupt;
+	int		m_ninterruptCount;
+	int		m_ninterruptTarget;
     BYTE **m_board;
+
+	bool	m_bStart;
+	DWORD	m_befortime;
+	bool	m_bShake;
+
     Block *m_pBlock;
     BYTE m_level;
     BYTE m_gameParam;
@@ -54,12 +65,18 @@ private:
     void UpdateWindow();
     void NextRandomBlock();
     BYTE NextRandomColor();
+
+	void NextRandomBlock(int t);
+    BYTE NextRandomColor(int  t);
+
     Block *BlockFromIndex(BYTE i);
+	Block *BlockFromIndex(BYTE i, int ty);
     BOOL CheckLine(BYTE row);
     void RemoveLine(BYTE row);
     BOOL IsGameOver(BYTE blockType);
     void GameOver();
 
+	void Stop(MCIDEVICEID id);
 public:
 	virtual BOOL OnInitDialog();
 	afx_msg void OnPaint();

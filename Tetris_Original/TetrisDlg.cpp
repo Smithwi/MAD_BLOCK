@@ -1,12 +1,17 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "Tetris.h"
 #include "TetrisDlg.h"
 
 #ifdef _DEBUG
+
 #define new DEBUG_NEW
 #endif
 
-/* °ÔÀÓ À©µµ¿ì ±¸ÇöÀ» À§ÇÑ ½ÇÁúÀûÀÎ ÄÚµå */
+#define VK_A			  0x41
+
+
+
+/* ê²Œì„ ìœˆë„ìš° êµ¬í˜„ì„ ìœ„í•œ ì‹¤ì§ˆì ì¸ ì½”ë“œ */
 
 //////////////////////////
 /* 0x01 = NEW */
@@ -16,7 +21,7 @@
 /* 0x10 = EXIT */
 //////////////////////////
 
-// °ÔÀÓ ÃÊ±â»óÅÂ ±¸Çö(ÀÌ¹ÌÁö ºÒ·¯¿À±â, ·¹º§, °ÔÀÓ»óÅÂ)
+// ê²Œì„ ì´ˆê¸°ìƒíƒœ êµ¬í˜„(ì´ë¯¸ì§€ ë¶ˆëŸ¬ì˜¤ê¸°, ë ˆë²¨, ê²Œì„ìƒíƒœ)
 CTetrisDlg::CTetrisDlg(CWnd* pParent /*=NULL*/)
 : CDialog(CTetrisDlg::IDD, pParent)
 {
@@ -24,20 +29,28 @@ CTetrisDlg::CTetrisDlg(CWnd* pParent /*=NULL*/)
     m_bk.Load(_T("res\\003-StarlitSky01.jpg"));
     m_block.Load(_T("res\\178-Switch01.png"));
     m_window.Load(_T("res\\window.png"));
-    m_gameover.Load(_T("res\\gameover.png"));
+	m_gameover.Load(_T("res\\gameover.png"));
 
-	// ºí·°ÀÌ Ã¤¿öÁú ¹è¿­(= °ÔÀÓÈ­¸é)
+	// ë¸”ëŸ­ì´ ì±„ì›Œì§ˆ ë°°ì—´(= ê²Œì„í™”ë©´)
     m_board = new BYTE*[ROW];
     for(BYTE i = 0; i < ROW; ++i)
     {
         m_board[i] = new BYTE[COL];
     }
+
+	m_befortime = GetTickCount();
     m_level = 0;
     m_gameParam = 0x08;
     m_pBlock = NULL;
+	m_ninterruptCount =0;
+	m_ninterruptTarget=0;
+	m_ninterrupt =0;
+	m_bShake =false;
+	m_bStart=false;
+	oneShot = 1;
 }
 
-// Window ¼Ò¸êÀÚ
+// Window ì†Œë©¸ì
 CTetrisDlg::~CTetrisDlg()
 {
     m_memBmp.DeleteObject();
@@ -47,11 +60,14 @@ CTetrisDlg::~CTetrisDlg()
     for(BYTE i = 0; i < ROW; ++i)
     {
         delete[] m_board[i];
+
     }
     delete[] m_board;
+	
+	
 }
 
-// Event ¸Ş½ÃÁö ¸ÊÇÎ
+// Event ë©”ì‹œì§€ ë§µí•‘
 BEGIN_MESSAGE_MAP(CTetrisDlg, CDialog)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
@@ -76,22 +92,22 @@ BEGIN_MESSAGE_MAP(CTetrisDlg, CDialog)
 	ON_COMMAND(ID_HELP_ABOUT, &CTetrisDlg::OnHelpAbout)
 END_MESSAGE_MAP()
 
-// È­¸é ¾÷µ¥ÀÌÆ®
+// í™”ë©´ ì—…ë°ì´íŠ¸
 void CTetrisDlg::Update()
 {
     RedrawBkgnd(CRect(0, 0, WIDTH + 320, HEIGHT));
     UpdateBlock();
     UpdateWindow();
 
-	// gameoverÀÏ ¶§
+	// gameoverì¼ ë•Œ
     if(m_gameParam & 0x04)
     {
-		// gameover ÀÌ¹ÌÁö Àû¿ë
+		// gameover ì´ë¯¸ì§€ ì ìš©
         CDC gameoverMemDC;
         gameoverMemDC.CreateCompatibleDC(&m_memDC);
         gameoverMemDC.SelectObject(m_gameover);
 
-		// ºñÆ®¸Ê ÀÌ¹ÌÁö »ç¿ë½Ã blend option
+		// ë¹„íŠ¸ë§µ ì´ë¯¸ì§€ ì‚¬ìš©ì‹œ blend option
         BLENDFUNCTION bf;
         bf.BlendOp = AC_SRC_OVER;
         bf.BlendFlags = 0;
@@ -102,7 +118,7 @@ void CTetrisDlg::Update()
     m_pDC->BitBlt(0, 0, WIDTH + 320, HEIGHT, &m_memDC, 0, 0, SRCCOPY);
 }
 
-// Ã¢ Á¶Àı
+// ì°½ ì¡°ì ˆ
 void CTetrisDlg::AdjustFrame()
 {
     CRect rect;
@@ -114,13 +130,15 @@ void CTetrisDlg::AdjustFrame()
     SetWindowPos(NULL, 0, 0, rect.Width(), rect.Height(), SWP_NOMOVE | SWP_NOZORDER);
 }
 
-// ÃÊ±âÈ­
+// ì´ˆê¸°í™”
 void CTetrisDlg::Initialize()
 {
-	// Å¸ÀÌ¸Ó ÃÊ±âÈ­
+	// íƒ€ì´ë¨¸ ì´ˆê¸°í™”
     KillTimer(555);
     m_lines = 0;
     m_score = 0;
+	oneShot = 1;
+	m_befortime = GetTickCount();
     for(BYTE i = 0; i < ROW; ++i)
     {
         memset(m_board[i], 0, COL);
@@ -128,13 +146,13 @@ void CTetrisDlg::Initialize()
     delete m_pBlock;
     m_pBlock = NULL;
 
-	// STOP, PAUSE ºñÈ°¼ºÈ­
+	// STOP, PAUSE ë¹„í™œì„±í™”
     m_menu.EnableMenuItem(ID_GAME_STOP, MF_DISABLED | MF_GRAYED);
     m_menu.EnableMenuItem(ID_GAME_PAUSE, MF_DISABLED | MF_GRAYED);
     m_menu.CheckMenuItem(ID_GAME_PAUSE, MF_UNCHECKED);
 }
 
-// ¹è°æ ±×¸®±â
+// ë°°ê²½ ê·¸ë¦¬ê¸°
 void CTetrisDlg::RedrawBkgnd(RECT rect)
 {
     CBrush bkBr(CBitmap::FromHandle(m_bk));
@@ -175,6 +193,17 @@ void CTetrisDlg::SetFontSize(BYTE size)
 }
 
 // SOUND
+
+void CTetrisDlg::Stop(MCIDEVICEID id)
+{
+    if(m_gameParam & 0x08)
+    {
+        MCI_PLAY_PARMS playParms;
+        playParms.dwFrom = 0;
+        ::mciSendCommand(id, MCI_STOP, MCI_FROM, (DWORD)(LPMCI_PLAY_PARMS)&playParms);
+    }
+}
+
 void CTetrisDlg::Play(MCIDEVICEID id)
 {
     if(m_gameParam & 0x08)
@@ -192,7 +221,7 @@ void CTetrisDlg::UpdateBlock()
     blockMemDC.CreateCompatibleDC(&m_memDC);
     blockMemDC.SelectObject(m_block);
 
-	// ºñÆ®¸Ê ÀÌ¹ÌÁö »ç¿ë½Ã blend option
+	// ë¹„íŠ¸ë§µ ì´ë¯¸ì§€ ì‚¬ìš©ì‹œ blend option
     BLENDFUNCTION bf;
     bf.BlendOp = AC_SRC_OVER;
     bf.BlendFlags = 0;
@@ -215,15 +244,15 @@ void CTetrisDlg::UpdateBlock()
     blockMemDC.DeleteDC();
 }
 
-// È­¸é update
+// í™”ë©´ update
 void CTetrisDlg::UpdateWindow()
 {
-	// window ÀÌ¹ÌÁö Àû¿ë
+	// window ì´ë¯¸ì§€ ì ìš©
     CDC wndMemDC;
     wndMemDC.CreateCompatibleDC(&m_memDC);
     wndMemDC.SelectObject(m_window);
 
-	// ºñÆ®¸Ê ÀÌ¹ÌÁö blend option
+	// ë¹„íŠ¸ë§µ ì´ë¯¸ì§€ blend option
     BLENDFUNCTION bf;
     bf.BlendOp = AC_SRC_OVER;
     bf.BlendFlags = 0;
@@ -232,12 +261,12 @@ void CTetrisDlg::UpdateWindow()
     ::AlphaBlend(m_memDC, 328, 10, 308, 629, wndMemDC, 0, 0, 308, 629, bf);
     wndMemDC.DeleteDC();
 
-	// text ¼³Á¤
+	// text ì„¤ì •
     SetFontSize(30);
     CString str;
-    DrawText(360, 32, 600, 64, str = "NEXT TETROMINO:", DT_LEFT);
+    DrawText(360, 32, 600, 64, str = "ITEM : A / DROP : SPACE", DT_LEFT);
 
-	// block ÀÌ¹ÌÁö Àû¿ë
+	// block ì´ë¯¸ì§€ ì ìš©
     CDC blockMemDC;
     blockMemDC.CreateCompatibleDC(&m_memDC);
     blockMemDC.SelectObject(m_block);
@@ -245,43 +274,43 @@ void CTetrisDlg::UpdateWindow()
     BYTE x = (m_nextColor - 1) << 5;
     switch((m_gameParam & 0xE0) >> 5)
     {
-    case 1:
+    case 1: // ì¼ì§ì„ 
         m_memDC.StretchBlt(414, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(446, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(478, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(510, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         break;
-    case 2:
+    case 2: //ê¸°ì–µì
         m_memDC.StretchBlt(430, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(462, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(494, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(494, 128, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         break;
-    case 3:
+    case 3://Lì
         m_memDC.StretchBlt(430, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(462, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(494, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(430, 128, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         break;
-    case 4:
+    case 4: //ì •ì‚¬ê°í˜•
         m_memDC.StretchBlt(446, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(478, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(446, 128, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(478, 128, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         break;
-    case 5:
+    case 5://ã„¹ì
         m_memDC.StretchBlt(462, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(494, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(430, 128, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(462, 128, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         break;
-    case 6:
+    case 6://ã…—ì
         m_memDC.StretchBlt(430, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(462, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(494, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(462, 128, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         break;
-    case 7:
+    case 7:// ã„¹ ë°˜ëŒ€í¸
         m_memDC.StretchBlt(430, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(462, 96, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
         m_memDC.StretchBlt(462, 128, 32, 32, &blockMemDC, x, 0, 32, 32, SRCCOPY);
@@ -289,48 +318,66 @@ void CTetrisDlg::UpdateWindow()
     }
     blockMemDC.DeleteDC();
 
-	// °¢°¢ÀÇ ¹öÆ° ±ÛÀÚ ¼³Á¤
+	if(m_bStart==false)
+		m_befortime = GetTickCount();
+	// ê°ê°ì˜ ë²„íŠ¼ ê¸€ì ì„¤ì •
     DrawText(360, 192, 600, 224, str = "LEVEL:", DT_LEFT);
     str.Format(_T("%d"), m_level + 1);
     DrawText(360, 192, 600, 224, str, DT_RIGHT);
-    DrawText(360, 256, 600, 288, str = "SCORE:", DT_LEFT);
+    DrawText(360, 256, 600, 288, str = "TIME:", DT_LEFT);
+	DWORD ple = GetTickCount()-m_befortime;
+	if(ple>=1000.0f)
+	{
+		m_score++;
+		m_befortime =GetTickCount();
+	}
+
     str.Format(_T("%d"), m_score);
-    DrawText(360, 256, 600, 288, str, DT_RIGHT);
-    DrawText(360, 320, 600, 352, str = "LINES:", DT_LEFT);
-    str.Format(_T("%d"), m_lines);
+   DrawText(360, 256, 600, 288, str, DT_RIGHT);
+   // DrawText(360, 320, 600, 352, str = "LINES:", DT_LEFT);
+	
+	str.Format(_T("ITEM:"));
+	DrawText(360, 320, 600, 352, str, DT_LEFT);
+
+	str.Format(_T("%d"), oneShot);
     DrawText(360, 320, 600, 352, str, DT_RIGHT);
     SetFontSize(m_mouseOver == 0x01 ? 36 : 30);
     DrawText(360, 384, 600, 416, str = "NEW", DT_CENTER);
 
-	// °ÔÀÓ ½ÃÀÛÀ» ¾ÈÇß°Å³ª STOP »óÅÂÀÏ ¶§
+	// ê²Œì„ ì‹œì‘ì„ ì•ˆí–ˆê±°ë‚˜ STOP ìƒíƒœì¼ ë•Œ
     if(!(m_gameParam & 0x01) || (m_gameParam & 0x04))
     {
         SetFontSize(30);
         DrawText(400, 448, 560, 480, str = "PAUSE", DT_LEFT, 0xA0A0A0);
         DrawText(400, 448, 560, 480, str = "STOP", DT_RIGHT, 0xA0A0A0);
+		
     }
     else
     {
-		// PAUSE¿¡ ¸¶¿ì½º¿À¹ö ÇßÀ»¶§ ±ÛÀÚ Ä¿Áü
+		
+		// PAUSEì— ë§ˆìš°ìŠ¤ì˜¤ë²„ í–ˆì„ë•Œ ê¸€ì ì»¤ì§
         SetFontSize(m_mouseOver == 0x02 ? 36 : 30);
         DrawText(400, 448, 560, 480, str = "PAUSE", DT_LEFT, m_gameParam & 0x02 ? 0x0000FF : 0xFFFFFF);
         
-		// STOP¿¡ ¸¶¿ì½º¿À¹ö ÇßÀ»¶§ ±ÛÀÚ Ä¿Áü
+		// STOPì— ë§ˆìš°ìŠ¤ì˜¤ë²„ í–ˆì„ë•Œ ê¸€ì ì»¤ì§
 		SetFontSize(m_mouseOver == 0x04 ? 36 : 30);
         DrawText(400, 448, 560, 480, str = "STOP", DT_RIGHT, 0xFFFFFF);
     }
 
-	// SOUND¿¡ ¸¶¿ì½º¿À¹ö ÇßÀ»¶§ ±ÛÀÚ Ä¿Áü
+	 
+
+	//oneShot
+	// SOUNDì— ë§ˆìš°ìŠ¤ì˜¤ë²„ í–ˆì„ë•Œ ê¸€ì ì»¤ì§
     SetFontSize(m_mouseOver == 0x08 ? 36 : 30);
     SetTextColor(m_memDC, 0xFFFFFF);
     DrawText(360, 512, 600, 544, str = "SOUND", DT_CENTER, m_gameParam & 0x08 ? 0x0000FF : 0xFFFFFF);
     
-	// EXIT¿¡ ¸¶¿ì½º¿À¹ö ÇßÀ»¶§ ±ÛÀÚ Ä¿Áü
+	// EXITì— ë§ˆìš°ìŠ¤ì˜¤ë²„ í–ˆì„ë•Œ ê¸€ì ì»¤ì§
 	SetFontSize(m_mouseOver == 0x10 ? 36 : 30);
     DrawText(360, 576, 600, 608, str = "EXIT", DT_CENTER);
 }
 
-// ´ÙÀ½ block random
+// ë‹¤ìŒ block random
 void CTetrisDlg::NextRandomBlock()
 {
     UINT r;
@@ -340,7 +387,7 @@ void CTetrisDlg::NextRandomBlock()
     m_nextColor = NextRandomColor();
 }
 
-// ´ÙÀ½ block color random
+// ë‹¤ìŒ block color random
 BYTE CTetrisDlg::NextRandomColor()
 {
     UINT r;
@@ -348,7 +395,47 @@ BYTE CTetrisDlg::NextRandomColor()
     return (BYTE)((DOUBLE)r / ((__int64)UINT_MAX + 1) * 4 + 1);
 }
 
-// Block Index ºÎ¿©
+
+
+// ë‹¤ìŒ block random
+void CTetrisDlg::NextRandomBlock(int t)
+{
+    UINT r;
+    rand_s(&r);
+    m_gameParam &= 0x1F;
+    m_gameParam |= ((BYTE)((DOUBLE)r / ((__int64)UINT_MAX + 1) * 7) + 1) << 5;
+    m_nextColor = NextRandomColor(t);
+}
+
+// ë‹¤ìŒ block color random
+BYTE CTetrisDlg::NextRandomColor(int t)
+{
+    return t;
+}
+
+Block *CTetrisDlg::BlockFromIndex(BYTE i, int ty)
+{
+	
+    Play(theApp.m_se_apprID);
+    switch(i >> 5)
+    {
+    case 1:
+        return new BlockI(ty, m_board);
+    case 2:
+        return new BlockJ(ty, m_board);
+    case 3:
+        return new BlockL(ty, m_board);
+    case 4:
+        return new BlockO(ty, m_board);
+    case 5:
+        return new  BlockS(ty, m_board);
+    case 6:
+        return new BlockT(ty, m_board);
+    default:
+        return new BlockZ(ty, m_board);
+    }
+}
+// Block Index ë¶€ì—¬
 Block *CTetrisDlg::BlockFromIndex(BYTE i)
 {
     Play(theApp.m_se_apprID);
@@ -371,12 +458,12 @@ Block *CTetrisDlg::BlockFromIndex(BYTE i)
     }
 }
 
-// ÇöÀç ÁÙ Ã¼Å©
+// í˜„ì¬ ì¤„ ì²´í¬
 BOOL CTetrisDlg::CheckLine(BYTE row)
 {
     BYTE *thisRow = m_board[row];
     
-	// ÇÑ ¿­, ÇÑ ¿­ Ã¼Å©ÇØ¼­ ÇÏ³ª¶óµµ ºñ¾îÀÖÀ¸¸é return false
+	// í•œ ì—´, í•œ ì—´ ì²´í¬í•´ì„œ í•˜ë‚˜ë¼ë„ ë¹„ì–´ìˆìœ¼ë©´ return false
 	for(BYTE i = 0; i < COL; ++i)
     {
         if(!thisRow[i])
@@ -385,18 +472,18 @@ BOOL CTetrisDlg::CheckLine(BYTE row)
     return true;
 }
 
-// ÁÙ Á¦°Å
+// ì¤„ ì œê±°
 void CTetrisDlg::RemoveLine(BYTE row)
 {
     BYTE *prevRow;
     BYTE *thisRow = m_board[row];
 
-	// block ÀÌ¹ÌÁö Àû¿ë
+	// block ì´ë¯¸ì§€ ì ìš©
     CDC blockMemDC;
     blockMemDC.CreateCompatibleDC(&m_memDC);
     blockMemDC.SelectObject(m_block);
 
-	// ºñÆ®¸Ê ÀÌ¹ÌÁö Àû¿ë ¿É¼Ç
+	// ë¹„íŠ¸ë§µ ì´ë¯¸ì§€ ì ìš© ì˜µì…˜
     BLENDFUNCTION bf;
     bf.BlendOp = AC_SRC_OVER;
     bf.BlendFlags = 0;
@@ -404,7 +491,7 @@ void CTetrisDlg::RemoveLine(BYTE row)
 
     Play(theApp.m_se_dsprID);
 
-	// Áö¿öÁú ÁÙÀÇ ºí·° Opacity¸¦ 0À¸·Î ³·Ãã
+	// ì§€ì›Œì§ˆ ì¤„ì˜ ë¸”ëŸ­ Opacityë¥¼ 0ìœ¼ë¡œ ë‚®ì¶¤
     for(BYTE opacity = 220; opacity != 0; --opacity)
     {
         RedrawBkgnd(CRect(0, row << 5, WIDTH, (row + 1) << 5));
@@ -417,11 +504,11 @@ void CTetrisDlg::RemoveLine(BYTE row)
     }
     for(CHAR i = row; i > 0; --i)
     {
-		// À­ÁÙÀÌ ÇÑ Ä­ ¾Æ·¡·Î ³»·Á¿È
+		// ìœ—ì¤„ì´ í•œ ì¹¸ ì•„ë˜ë¡œ ë‚´ë ¤ì˜´
         prevRow = m_board[i - 1];
         thisRow = m_board[i];
 
-		// ³»·Á¿Â ÁÙÀ» thisRow·Î ÀúÀå
+		// ë‚´ë ¤ì˜¨ ì¤„ì„ thisRowë¡œ ì €ì¥
         for(BYTE j = 0; j < COL; ++j)
         {
             thisRow[j] = prevRow[j];
@@ -432,12 +519,11 @@ void CTetrisDlg::RemoveLine(BYTE row)
         prevRow[i] = 0;
     }
     blockMemDC.DeleteDC();
-    m_score += 100 + m_level * 50;
     ++m_lines;
     Update();
 }
 
-// °ÔÀÓ ³¡³µ´ÂÁö È®ÀÎ
+// ê²Œì„ ëë‚¬ëŠ”ì§€ í™•ì¸
 BOOL CTetrisDlg::IsGameOver(BYTE blockType)
 {
     switch(blockType)
@@ -472,19 +558,19 @@ BOOL CTetrisDlg::IsGameOver(BYTE blockType)
     }
 }
 
-// °ÔÀÓ Á¾·á
+// ê²Œì„ ì¢…ë£Œ
 void CTetrisDlg::GameOver()
 {
-	// °ÔÀÓ ¿À¹ö ½ÇÇà
+	// ê²Œì„ ì˜¤ë²„ ì‹¤í–‰
     Play(theApp.m_me_gmvrID);
 
-	//°ÔÀÓÀÌ ²¨Á³À»¶§ timer¸¦ ²¨ÁÖ´Â ÇÔ¼ö
+	//ê²Œì„ì´ êº¼ì¡Œì„ë•Œ timerë¥¼ êº¼ì£¼ëŠ” í•¨ìˆ˜
     KillTimer(555);
 
-	// °ÔÀÓ STOP
+	// ê²Œì„ STOP
     m_gameParam |= 0x04;
 
-	// °ÔÀÓ¸Ş´º¿¡¼­ stop°ú pause ºñÈ°¼ºÈ­
+	// ê²Œì„ë©”ë‰´ì—ì„œ stopê³¼ pause ë¹„í™œì„±í™”
     m_menu.EnableMenuItem(ID_GAME_STOP, MF_DISABLED | MF_GRAYED);
     m_menu.EnableMenuItem(ID_GAME_PAUSE, MF_DISABLED | MF_GRAYED);    
 }
@@ -504,36 +590,36 @@ BOOL CTetrisDlg::PreTranslateMessage(MSG *pMsg)
     return CDialog::PreTranslateMessage(pMsg);
 }
 
-// ¹öÆ° ¹× ¸Ş´º ÃÊ±âÈ­
+// ë²„íŠ¼ ë° ë©”ë‰´ ì´ˆê¸°í™”
 BOOL CTetrisDlg::OnInitDialog()
 {
 	CDialog::OnInitDialog();
 
-	// ¸Ş´º ·Îµå
+	// ë©”ë‰´ ë¡œë“œ
 	SetIcon(m_hIcon, TRUE);
 	SetIcon(m_hIcon, FALSE);
     m_menu.LoadMenu(IDR_MENU);
 
-	// ¸Ş´º¼³Á¤
+	// ë©”ë‰´ì„¤ì •
     SetMenu(&m_menu);
     m_menu.EnableMenuItem(ID_GAME_PAUSE, MF_DISABLED | MF_GRAYED);
     m_menu.EnableMenuItem(ID_GAME_STOP, MF_DISABLED | MF_GRAYED);
 
-	// client ¿µ¿ª È°¼ºÈ­(Å×Æ®¸®½º È­¸é)
+	// client ì˜ì—­ í™œì„±í™”(í…ŒíŠ¸ë¦¬ìŠ¤ í™”ë©´)
     m_pDC = new CClientDC(this);
 
-	// È­¸é¿¡ ºñÆ®¸Ê Ãâ·Â
+	// í™”ë©´ì— ë¹„íŠ¸ë§µ ì¶œë ¥
     m_memDC.CreateCompatibleDC(m_pDC);
     m_memBmp.CreateCompatibleBitmap(m_pDC, WIDTH + 320, HEIGHT);
     m_memDC.SelectObject(m_memBmp);
 
-	// ±ÛÀÚÀÇ backÀ» Åõ¸íÇÏ°Ô ¼³Á¤
+	// ê¸€ìì˜ backì„ íˆ¬ëª…í•˜ê²Œ ì„¤ì •
     m_memDC.SetBkMode(TRANSPARENT);
     SetFontSize(30);
     AdjustFrame();
     Initialize();
 
-	// sound, level - beginner ¸Ş´º È°¼ºÈ­
+	// sound, level - beginner ë©”ë‰´ í™œì„±í™”
 	m_menu.CheckMenuItem(ID_GAME_SOUND, MF_CHECKED);
 	m_menu.CheckMenuItem(ID_LEVEL_BEGINNER, MF_CHECKED);
 
@@ -541,18 +627,18 @@ BOOL CTetrisDlg::OnInitDialog()
     return TRUE;
 }
 
-// WM_PAINT°¡ ¹ß»ıÇÏ¸é ÇØ´ç ÇÔ¼ö°¡ È£Ãâ
+// WM_PAINTê°€ ë°œìƒí•˜ë©´ í•´ë‹¹ í•¨ìˆ˜ê°€ í˜¸ì¶œ
 void CTetrisDlg::OnPaint()
 {
     Update();
 	if (IsIconic())
 	{
-		// ±×¸®±â¸¦ À§ÇÑ ÄÁÅØ½ºÆ®
+		// ê·¸ë¦¬ê¸°ë¥¼ ìœ„í•œ ì»¨í…ìŠ¤íŠ¸
 	    CPaintDC dc(this);
 
 		SendMessage(WM_ICONERASEBKGND, reinterpret_cast<WPARAM>(dc.GetSafeHdc()), 0);
 
-		// Å¬¶óÀÌ¾ğÆ® »ç°¢Çü¿¡¼­ ¾ÆÀÌÄÜÀ» °¡¿îµ¥¿¡ ¸ÂÃã
+		// í´ë¼ì´ì–¸íŠ¸ ì‚¬ê°í˜•ì—ì„œ ì•„ì´ì½˜ì„ ê°€ìš´ë°ì— ë§ì¶¤
 		int cxIcon = GetSystemMetrics(SM_CXICON);
 		int cyIcon = GetSystemMetrics(SM_CYICON);
 		CRect rect;
@@ -560,7 +646,7 @@ void CTetrisDlg::OnPaint()
 		int x = (rect.Width() - cxIcon + 1) / 2;
 		int y = (rect.Height() - cyIcon + 1) / 2;
 
-		// ¾ÆÀÌÄÜÀ» ±×¸²
+		// ì•„ì´ì½˜ì„ ê·¸ë¦¼
 		dc.DrawIcon(x, y, m_hIcon);
 	}
 	else
@@ -574,10 +660,10 @@ HCURSOR CTetrisDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-// Å°º¸µå ÇÕ¼ö
+// í‚¤ë³´ë“œ í•©ìˆ˜
 void CTetrisDlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
-	// ´ÜÃàÅ° È°¿ë(F1, F2, F3, F4)
+	// ë‹¨ì¶•í‚¤ í™œìš©(F1, F2, F3, F4)
     switch(nChar)
     {
 		// F1, NEW
@@ -597,68 +683,177 @@ void CTetrisDlg::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		// F4, SOUND
     case VK_F4:
         PostMessage(WM_COMMAND, ID_GAME_SOUND, 0L);
+		break;
     }
 
-	// ¹æÇâÅ° Á¶ÀÛ
+	// ë°©í–¥í‚¤ ì¡°ì‘
     if((m_gameParam & 0x07) == 0x01)
     {
         switch(nChar)
         {
-			// À§ ¹æÇâÅ°
+			// ìœ„ ë°©í–¥í‚¤
         case VK_UP:
-            if(!(nFlags & 0x4000))
-            {
-                if(m_pBlock->canTurn())
-                {
-                    Play(theApp.m_se_turnID);
-                    m_pBlock->turn();
-                }
-                else if(m_gameParam & 0x08)
-                {
-                    Play(theApp.m_se_dsblID);
-                }
-            }
+			if((m_ninterrupt ==2||m_ninterrupt==3)&&(m_ninterruptCount ==m_ninterruptTarget))
+			{
+				Play(theApp.m_w_ID);
+				m_ninterruptTarget =GetTickCount()%5+1;
+				m_ninterruptCount=0;
+			
+			}
+			else
+			{
+				if(!(nFlags & 0x4000))
+				{
+					if(m_pBlock->canTurn())
+					{
+					
+						Play(theApp.m_se_turnID);
+						m_pBlock->turn();
+					}
+					else if(m_gameParam & 0x08)
+					{
+						Play(theApp.m_se_dsblID);
+					}
+				}
+			}
+			m_ninterruptCount++;
             break;
-			// ¾Æ·¡ ¹æÇâÅ°
+			// ì•„ë˜ ë°©í–¥í‚¤
         case VK_DOWN:
-            if(m_pBlock->canMoveDown())
-            {
-                m_pBlock->moveDown();
-                m_score += m_level + 1;
-            }
+			if((m_ninterrupt ==1||m_ninterrupt==3)&&(m_ninterruptCount ==m_ninterruptTarget))
+			{
+				int k = GetTickCount()%3;
+				if(k==0)
+				{
+					if(m_pBlock->canMoveRight())
+					{
+						Play(theApp.m_w_ID);
+						m_pBlock->moveRight();
+					
+					}
+				}
+
+				if(k==1)
+				{
+					if(m_pBlock->canMoveLeft())
+					{
+						Play(theApp.m_w_ID);
+						m_pBlock->moveLeft();
+					
+					}
+				}
+
+				if(k==2)
+				{
+					Play(theApp.m_w_ID);
+				}
+
+				m_ninterruptTarget =GetTickCount()%5+1;
+				m_ninterruptCount=0;
+				
+			}
+			else
+			{
+				if(m_pBlock->canMoveDown())
+				{
+					m_pBlock->moveDown();
+				}
+			}
+			m_ninterruptCount++;
             break;
 
-			// ¿ŞÂÊ ¹æÇâÅ°
+			// ì™¼ìª½ ë°©í–¥í‚¤
         case VK_LEFT:
-            if(m_pBlock->canMoveLeft())
-            {
-                m_pBlock->moveLeft();
-            }
+			if((m_ninterrupt ==1||m_ninterrupt==3)&&(m_ninterruptCount ==m_ninterruptTarget))
+			{
+				if(m_pBlock->canMoveRight())
+				{
+					Play(theApp.m_w_ID);
+					m_pBlock->moveRight();
+					
+				}
+				m_ninterruptTarget =GetTickCount()%5+1;
+				m_ninterruptCount=0;
+				
+			}
+			else
+			{
+				if(m_pBlock->canMoveLeft())
+				{
+					m_pBlock->moveLeft();
+				}
+			}
+			m_ninterruptCount++;
             break;
 
-			// ¿À¸¥ÂÊ ¹æÇâÅ°
+			// ì˜¤ë¥¸ìª½ ë°©í–¥í‚¤
         case VK_RIGHT:
-            if(m_pBlock->canMoveRight())
-            {
-                m_pBlock->moveRight();
-            }
+			if((m_ninterrupt ==1||m_ninterrupt==3)&&(m_ninterruptCount ==m_ninterruptTarget))
+			{
+				if(m_pBlock->canMoveLeft())
+				{
+					Play(theApp.m_w_ID);
+					m_pBlock->moveLeft();
+				
+				}
+				m_ninterruptTarget =GetTickCount()%5+1;
+				m_ninterruptCount=0;
+			}
+			else
+			{
+			    if(m_pBlock->canMoveRight())
+				{
+					m_pBlock->moveRight();
+				}
+			}
+			m_ninterruptCount++;
             break;
+		
+		/* a í‚¤ë¥¼ ëˆ„ë¥´ë©´ ê²Œì„ë‹¹ í•œ ë²ˆ!
+		   í™”ë©´ ì•ˆì— ìˆëŠ” ëª¨ë“  ë¸”ëŸ­ì„ ì§€ìš¸ ìˆ˜ ìˆë‹¤.*/
+		case VK_A:
+			if(oneShot == 1){
+				for(BYTE i = 0; i < ROW; ++i)
+				{
+					BYTE *nextRow = m_board[i];
+					
+					for(BYTE j = 0; j < COL; ++j)
+					{
+						if( nextRow[j] !=0)
+						nextRow[j] =0;
+					}
+				}
+				
+			oneShot = 0;
+			}
+
+			break;
+
+			// space barë¥¼ ëˆ„ë¥´ë©´ ë¸”ëŸ­ì´ í•œë²ˆì— ë‚´ë ¤ì˜´
+		case VK_SPACE:
+			while(m_pBlock->canMoveDown())
+		   {
+			    m_pBlock->moveDown();
+		   }
+			break;
         }
         Invalidate(FALSE);
     }
     CDialog::OnKeyDown(nChar, nRepCnt, nFlags);
 }
 
-// ¸¶¿ì½º¸¦ Å¬¸¯ÇßÀ» ¶§(Å¬¸¯Çß´Ù°¡ ´Ù¸¥°÷¿¡¼­ ¸¶¿ì½º¸¦ ¶ç¾úÀ»¶§¸¦ À§ÇÔ)
+// ë§ˆìš°ìŠ¤ë¥¼ í´ë¦­í–ˆì„ ë•Œ(í´ë¦­í–ˆë‹¤ê°€ ë‹¤ë¥¸ê³³ì—ì„œ ë§ˆìš°ìŠ¤ë¥¼ ë„ì—ˆì„ë•Œë¥¼ ìœ„í•¨)
 void CTetrisDlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
     if(m_mouseOver != 0x00)
     {
         m_gameParam |= 0x10;
+		if(m_gameParam==24)
+			m_bStart =true;
     }
 }
 
-// ¸¶¿ì½º¸¦ ¶ç¾úÀ» ¶§ µ¿ÀÛ
+// ë§ˆìš°ìŠ¤ë¥¼ ë„ì—ˆì„ ë•Œ ë™ì‘
 void CTetrisDlg::OnLButtonUp(UINT nFlags, CPoint point)
 {
     if(m_gameParam & 0x10)
@@ -666,6 +861,7 @@ void CTetrisDlg::OnLButtonUp(UINT nFlags, CPoint point)
 		// NEW
         if(m_mouseOver == 0x01)
         {
+			//m_bStart=true;
             PostMessage(WM_COMMAND, ID_GAME_NEW);
         }
 
@@ -695,12 +891,12 @@ void CTetrisDlg::OnLButtonUp(UINT nFlags, CPoint point)
     }
 }
 
-// ¹öÆ°À§¿¡ ¸¶¿ì½º¿À¹ö ÇßÀ» ¶§
+// ë²„íŠ¼ìœ„ì— ë§ˆìš°ìŠ¤ì˜¤ë²„ í–ˆì„ ë•Œ
 void CTetrisDlg::OnMouseMove(UINT nFlags, CPoint point)
 {
-	// NEW¿¡ ¸¶¿ì½º ¿À¹ö
+	// NEWì— ë§ˆìš°ìŠ¤ ì˜¤ë²„
     CRect rect;
-	// NEW ¿µ¿ª
+	// NEW ì˜ì—­
     rect.SetRect(459, 384, 502, 413);
     if(m_mouseOver != 0x01 && ::PtInRect(&rect, point))
     {
@@ -714,10 +910,10 @@ void CTetrisDlg::OnMouseMove(UINT nFlags, CPoint point)
         Invalidate(FALSE);
     }
 
-	// (NEW¿¡ ¸¶¿ì½º ¿À¹öX) PAUSE¿¡ ¸¶¿ì½º ¿À¹ö
+	// (NEWì— ë§ˆìš°ìŠ¤ ì˜¤ë²„X) PAUSEì— ë§ˆìš°ìŠ¤ ì˜¤ë²„
     else
     {
-		// PAUSE ¿µ¿ª
+		// PAUSE ì˜ì—­
         rect.SetRect(400, 448, 459, 477);
         if((m_gameParam & 0x01) && !(m_gameParam & 0x04) && m_mouseOver != 0x02 && ::PtInRect(&rect, point))
         {
@@ -731,10 +927,10 @@ void CTetrisDlg::OnMouseMove(UINT nFlags, CPoint point)
             Invalidate(FALSE);
         }
 
-		// (NEW, PAUSE¿¡ ¸¶¿ì½º¿À¹ö X) STOP¿¡ ¸¶¿ì½º ¿À¹ö
+		// (NEW, PAUSEì— ë§ˆìš°ìŠ¤ì˜¤ë²„ X) STOPì— ë§ˆìš°ìŠ¤ ì˜¤ë²„
         else
         {
-			// STOP ¿µ¿ª
+			// STOP ì˜ì—­
             rect.SetRect(512, 448, 560, 477);
             if((m_gameParam & 0x01) && !(m_gameParam & 0x04) && m_mouseOver != 0x04 && ::PtInRect(&rect, point))
             {
@@ -748,10 +944,10 @@ void CTetrisDlg::OnMouseMove(UINT nFlags, CPoint point)
                 Invalidate(FALSE);
             }
 
-			// (NEW, PAUSE, STOP¿¡ ¸¶¿ì½º¿À¹ö X) SOUND¿¡ ¸¶¿ì½º ¿À¹ö
+			// (NEW, PAUSE, STOPì— ë§ˆìš°ìŠ¤ì˜¤ë²„ X) SOUNDì— ë§ˆìš°ìŠ¤ ì˜¤ë²„
             else
             {
-				// SOUND ¿µ¿ª
+				// SOUND ì˜ì—­
                 rect.SetRect(448, 512, 512, 541);
                 if(m_mouseOver != 0x08 && ::PtInRect(&rect, point))
                 {
@@ -765,10 +961,10 @@ void CTetrisDlg::OnMouseMove(UINT nFlags, CPoint point)
                     Invalidate(FALSE);
                 }
 
-				// (NEW, PAUSE, STOP, SOUND¿¡ ¸¶¿ì½º¿À¹ö X) EXIT¿¡ ¸¶¿ì½º ¿À¹ö
+				// (NEW, PAUSE, STOP, SOUNDì— ë§ˆìš°ìŠ¤ì˜¤ë²„ X) EXITì— ë§ˆìš°ìŠ¤ ì˜¤ë²„
                 else
                 {
-					// EXIT ¿µ¿ª
+					// EXIT ì˜ì—­
                     rect.SetRect(460, 576, 500, 608);
                     if(m_mouseOver != 0x10 && ::PtInRect(&rect, point))
                     {
@@ -792,22 +988,22 @@ UINT CTetrisDlg::OnGetDlgCode()
     return DLGC_WANTARROWS | CDialog::OnGetDlgCode();
 }
 
-// ¹è°æ Áö¿ò
+// ë°°ê²½ ì§€ì›€
 BOOL CTetrisDlg::OnEraseBkgnd(CDC* pDC)
 {
     return TRUE;
 }
 
-// Å¸ÀÌ¸Ó
+// íƒ€ì´ë¨¸
 void CTetrisDlg::OnTimer(UINT_PTR nIDEvent)
 {
-	// ÀÏÁ¤ ½Ã°£µ¿¾È block ¾Æ·¡·Î ³»·Á¿È
+	// ì¼ì • ì‹œê°„ë™ì•ˆ block ì•„ë˜ë¡œ ë‚´ë ¤ì˜´
     if(m_pBlock->canMoveDown())
     {
         m_pBlock->moveDown();
     }
 
-	// ÁÙÀ» Ã¼Å©ÇÏ¿© ÀüºÎ Ã¤¿öÁø ÁÙÀº Á¦°Å
+	// ì¤„ì„ ì²´í¬í•˜ì—¬ ì „ë¶€ ì±„ì›Œì§„ ì¤„ì€ ì œê±°
     else
     {
         for(CHAR i = ROW - 1; i >= 0; --i)
@@ -822,19 +1018,112 @@ void CTetrisDlg::OnTimer(UINT_PTR nIDEvent)
         MSG msg;
         while(::PeekMessage(&msg, m_hWnd, 0, 0, PM_REMOVE));
 		
-		// °ÔÀÓÀÌ Á¾·áµÇ¾ú´ÂÁö È®ÀÎ
+		// ê²Œì„ì´ ì¢…ë£Œë˜ì—ˆëŠ”ì§€ í™•ì¸
         if(IsGameOver(m_gameParam & 0xE0))
         {
             GameOver();
         }
         
-		// °ÔÀÓÀÌ Á¾·áµÇÁö ¾Ê¾Ò´Ù¸é °è¼Ó ÁøÇà
+		// ê²Œì„ì´ ì¢…ë£Œë˜ì§€ ì•Šì•˜ë‹¤ë©´ ê³„ì† ì§„í–‰
 		else
         {
+
+			for(BYTE i = 0; i < ROW; ++i)
+			{
+				BYTE *nextRow = m_board[i];
+				for(BYTE j = 0; j < COL; ++j)
+				{
+					BYTE clr = nextRow[j];
+					if(clr ==100)
+					{
+						nextRow[j] =1;
+					}
+				}
+			}
+
+			if(m_bShake)
+			{
+				 Play(theApp.m_w_ID);
+				int count =0;
+				for(BYTE i = 0; i < ROW; ++i)
+				{
+					BYTE *nextRow = m_board[i];
+					
+					for(BYTE j = 0; j < COL; ++j)
+					{
+						if( nextRow[j] !=0)
+							count++;
+						nextRow[j] =0;
+					}
+				}
+
+				int u=0;
+				while(u<count)
+				{
+					for(char i = (ROW-1); i >=0 ; i--)
+					{
+						BYTE *nextRow = m_board[i];
+						for(BYTE j = 0; j < COL; ++j)
+						{
+							if(u<count)
+							{
+								int k = rand()%3;
+								if( k==0)
+								{
+									nextRow[j] =1;
+									u++;
+								}
+							}
+							else
+							{
+							
+								break;
+							}
+
+							
+						}
+					}
+
+					if(u>count)
+					{
+						break;
+					}
+				}
+
+				m_bShake =false;
+			}
+
             delete m_pBlock;
-            m_pBlock = BlockFromIndex(m_gameParam & 0xE0);
-            NextRandomBlock();
-            m_nextColor = NextRandomColor();
+			m_pBlock = BlockFromIndex(m_gameParam & 0xE0);
+
+			
+			
+
+			int r= GetTickCount()%7;
+			if( r==0)
+			{
+				Play(theApp.m_w_ID);
+				NextRandomBlock(100);
+				m_nextColor = NextRandomColor(100); 
+			}
+			else
+			{
+				NextRandomBlock();
+				m_nextColor = NextRandomColor(); 
+			}
+
+			r= GetTickCount()%10;
+			if(r==0)
+			{
+				m_bShake=true;
+			}
+
+			m_ninterrupt = rand()%5+1;
+			m_ninterruptCount =0;
+			m_ninterruptTarget =rand()%5+1;
+			
+			
+	
         }
     }
     Invalidate(FALSE);
@@ -844,22 +1133,23 @@ void CTetrisDlg::OnTimer(UINT_PTR nIDEvent)
 // NEW button
 void CTetrisDlg::OnGameNew()
 {
-	// ÃÊ±âÈ­
+	// ì´ˆê¸°í™”
     if(m_gameParam & 0x01)
     {
         Initialize();
+		Stop(theApp.m_me_gmvrID);
     }
     m_gameParam |= 0x01;
     m_gameParam &= ~0x06;
     
-	// STOP, PAUSE È°¼ºÈ­
+	// STOP, PAUSE í™œì„±í™”
 	m_menu.EnableMenuItem(ID_GAME_STOP, MF_ENABLED);
     m_menu.EnableMenuItem(ID_GAME_PAUSE, MF_ENABLED);
 
-	// level¿¡ µû¸¥ Å¸ÀÌ¸Ó ¼³Á¤
-    SetTimer(555, 500 - m_level * 90, NULL);
+	// levelì— ë”°ë¥¸ íƒ€ì´ë¨¸ ì„¤ì •
+    SetTimer(555, 500 - 4 * 90, NULL);
 
-	// ´ÙÀ½ block random
+	// ë‹¤ìŒ block random
     NextRandomBlock();
     m_pBlock = BlockFromIndex(m_gameParam & 0xE0);
     NextRandomBlock();
@@ -872,16 +1162,18 @@ void CTetrisDlg::OnGamePause()
     Play(theApp.m_se_slctID);
     if(m_gameParam & 0x02)
     {
-		// PAUSE ¼±ÅÃÇ¥½Ã
+		// PAUSE ì„ íƒí‘œì‹œ
         m_menu.CheckMenuItem(ID_GAME_PAUSE, MF_UNCHECKED);
         m_gameParam &= ~0x02;
-        SetTimer(555, 500 - m_level * 90, NULL);
+        SetTimer(555, 500 - 4 * 90, NULL);
+		m_bStart =true;
     }
     else
     {
         m_menu.CheckMenuItem(ID_GAME_PAUSE, MF_CHECKED);
         m_gameParam |= 0x02;
         KillTimer(555);
+		m_bStart=false;
     }
     Invalidate(FALSE);
 }
@@ -889,6 +1181,8 @@ void CTetrisDlg::OnGamePause()
 // STOP button
 void CTetrisDlg::OnGameStop()
 {
+	m_befortime=GetTickCount();
+	m_bStart=false;
     Play(theApp.m_se_slctID);
     m_gameParam &= ~0xE7;
     Initialize();

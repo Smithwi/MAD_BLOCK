@@ -1,76 +1,83 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "Tetris.h"
 #include "TetrisDlg.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
-
-// CTetrisApp »ı¼ºÀÚ È£Ãâ
+//#pragma comment(linker , "/entry:WinMainCRTStartup /subsystem:console")
+// CTetrisApp ìƒì„±ì í˜¸ì¶œ
 CTetrisApp::CTetrisApp()
 {
     MCI_OPEN_PARMS openParms;
     memset(&openParms, 0, sizeof(openParms));
 
-	// m_se_apprID ÀÏ¶§ 001-System01.wav Àç»ı
+	// m_se_apprID ì¼ë•Œ 001-System01.wav ì¬ìƒ
     openParms.lpstrDeviceType = _T("waveaudio");
     openParms.lpstrElementName = _T("res\\001-System01.wav");
     ::mciSendCommand(0, MCI_OPEN, MCI_OPEN_TYPE | MCI_OPEN_ELEMENT, (DWORD)(LPMCI_OPEN_PARMS)&openParms);
     m_se_apprID = openParms.wDeviceID;
 
-	// m_se_turnID ÀÏ¶§ 003-System03.wav Àç»ı
+	// m_se_turnID ì¼ë•Œ 003-System03.wav ì¬ìƒ
     openParms.lpstrElementName = _T("res\\003-System03.wav");
     ::mciSendCommand(0, MCI_OPEN, MCI_OPEN_TYPE | MCI_OPEN_ELEMENT, (DWORD)(LPMCI_OPEN_PARMS)&openParms);
     m_se_turnID = openParms.wDeviceID;
 
-	// m_se_dsblID ÀÏ¶§ 004-System04.wav Àç»ı
+	// m_se_dsblID ì¼ë•Œ 004-System04.wav ì¬ìƒ
     openParms.lpstrElementName = _T("res\\004-System04.wav");
     ::mciSendCommand(0, MCI_OPEN, MCI_OPEN_TYPE | MCI_OPEN_ELEMENT, (DWORD)(LPMCI_OPEN_PARMS)&openParms);
     m_se_dsblID = openParms.wDeviceID;
 
-	// m_se_dsprID ÀÏ¶§ 012-System12.wav Àç»ı
+	// m_se_dsprID ì¼ë•Œ 012-System12.wav ì¬ìƒ
     openParms.lpstrElementName = _T("res\\012-System12.wav");
     ::mciSendCommand(0, MCI_OPEN, MCI_OPEN_TYPE | MCI_OPEN_ELEMENT, (DWORD)(LPMCI_OPEN_PARMS)&openParms);
     m_se_dsprID = openParms.wDeviceID;
 
-	// m_se_crsrID ÀÏ¶§ 032-Switch01.wav Àç»ı
+	// m_se_crsrID ì¼ë•Œ 032-Switch01.wav ì¬ìƒ
     openParms.lpstrElementName = _T("res\\032-Switch01.wav");
     ::mciSendCommand(0, MCI_OPEN, MCI_OPEN_TYPE | MCI_OPEN_ELEMENT, (DWORD)(LPMCI_OPEN_PARMS)&openParms);
     m_se_crsrID = openParms.wDeviceID;
 
-	// m_se_slctID ÀÏ¶§ 033-Switch02.wav Àç»ı
+	// m_se_slctID ì¼ë•Œ 033-Switch02.wav ì¬ìƒ
     openParms.lpstrElementName = _T("res\\033-Switch02.wav");
     ::mciSendCommand(0, MCI_OPEN, MCI_OPEN_TYPE | MCI_OPEN_ELEMENT, (DWORD)(LPMCI_OPEN_PARMS)&openParms);
     m_se_slctID = openParms.wDeviceID;
 
-	// m_se_gmvrID ÀÏ¶§ 006-Defeat02.mid Àç»ı
-    openParms.lpstrElementName = _T("res\\006-Defeat02.mid");
-    openParms.lpstrDeviceType = _T("sequencer");
+	//ê²½ê³ ìŒ ì¬ìƒ
+	openParms.lpstrElementName = _T("res\\034-Warnning.wav");
+    ::mciSendCommand(0, MCI_OPEN, MCI_OPEN_TYPE | MCI_OPEN_ELEMENT, (DWORD)(LPMCI_OPEN_PARMS)&openParms);
+    m_w_ID = openParms.wDeviceID;
+
+	// m_se_gmvrID ì¼ë•Œ 006-Defeat02.mid ì¬ìƒ
+    openParms.lpstrElementName = _T("res\\006-Defeat02.wav");
     ::mciSendCommand(0, MCI_OPEN, MCI_OPEN_TYPE | MCI_OPEN_ELEMENT, (DWORD)(LPMCI_OPEN_PARMS)&openParms);
     m_me_gmvrID = openParms.wDeviceID;
+
+
+	
 }
 
-// CTetrisApp ¼Ò¸êÀÚ È£Ãâ
+// CTetrisApp ì†Œë©¸ì í˜¸ì¶œ
 CTetrisApp::~CTetrisApp()
 {
     ::mciSendString(_T("close all"), NULL, 0, 0);
 }
 
-// the AppÀÌ¶ó´Â °´Ã¼ »ı¼º
+// the Appì´ë¼ëŠ” ê°ì²´ ìƒì„±
 CTetrisApp theApp;
 
-// ÀÎ½ºÅÏ½º ÃÊ±âÈ­
-/* ÀÀ¿ëÇÁ·Î±×·¥ÀÇ ¼³Á¤(À©µµ¿ì Å©±â, ¿É¼Ç, ½ºÅ¸ÀÏ µî)ÀÌ³ª, ½ÇÇàÇã¿ë¿©ºÎ */
-/* È¤Àº »ç¿ëÀÚ ÀÎÁõ, Áßº¹½ÇÇà¹æÁö µî°ú °ü·ÃµÈ ÄÚµå°¡ µé¾î°£´Ù.         */
+// ì¸ìŠ¤í„´ìŠ¤ ì´ˆê¸°í™”
+/* ì‘ìš©í”„ë¡œê·¸ë¨ì˜ ì„¤ì •(ìœˆë„ìš° í¬ê¸°, ì˜µì…˜, ìŠ¤íƒ€ì¼ ë“±)ì´ë‚˜, ì‹¤í–‰í—ˆìš©ì—¬ë¶€ */
+/* í˜¹ì€ ì‚¬ìš©ì ì¸ì¦, ì¤‘ë³µì‹¤í–‰ë°©ì§€ ë“±ê³¼ ê´€ë ¨ëœ ì½”ë“œê°€ ë“¤ì–´ê°„ë‹¤.         */
 BOOL CTetrisApp::InitInstance()
 {
 	CWinApp::InitInstance();
 
-	// ´ëÈ­»óÀÚ °´Ã¼ »ı¼º
+	// ëŒ€í™”ìƒì ê°ì²´ ìƒì„±
 	CTetrisDlg dlg;
 	m_pMainWnd = &dlg;
 	
-	// ´ëÈ­»óÀÚ »ç¿ë
+	// ëŒ€í™”ìƒì ì‚¬ìš©
 	INT_PTR nResponse = dlg.DoModal();
 
 	return FALSE;
